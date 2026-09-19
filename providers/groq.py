@@ -4,6 +4,7 @@ from typing import Any
 
 from groq import AsyncGroq
 
+from config.settings import MAX_OUTPUT_TOKENS
 from providers.base import ModelProvider
 
 
@@ -44,6 +45,14 @@ class GroqProvider(ModelProvider):
             api_key=api_key
         )
 
+    @staticmethod
+    def _is_non_retryable(error: Exception) -> bool:
+        status_code = getattr(error, "status_code", None)
+        return isinstance(status_code, int) and 400 <= status_code < 500
+
+    async def close(self) -> None:
+        await self.client.close()
+
     async def generate(
         self,
         messages: list[dict]
@@ -59,6 +68,8 @@ class GroqProvider(ModelProvider):
 
                     messages=messages,
 
+                    max_tokens=MAX_OUTPUT_TOKENS,
+
                 )
 
                 return (
@@ -69,7 +80,10 @@ class GroqProvider(ModelProvider):
                     or ""
                 )
 
-            except Exception:
+            except Exception as error:
+
+                if self._is_non_retryable(error):
+                    raise
 
                 if attempt >= 2:
                     raise
@@ -97,6 +111,8 @@ class GroqProvider(ModelProvider):
 
                     messages=messages,
 
+                    max_tokens=MAX_OUTPUT_TOKENS,
+
                     response_format={
                         "type": "json_schema",
                         "json_schema": {
@@ -122,7 +138,10 @@ class GroqProvider(ModelProvider):
 
                 return json.loads(content)
 
-            except Exception:
+            except Exception as error:
+
+                if self._is_non_retryable(error):
+                    raise
 
                 if attempt >= 2:
                     raise

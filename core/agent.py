@@ -15,6 +15,16 @@ from core.task import (
     Task,
     TaskStatus
 )
+from config.settings import MAX_CONTEXT_CHARS, MAX_RESULT_CHARS
+
+
+def clip_text(value: object, limit: int) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    head = max(1, limit * 2 // 3)
+    tail = limit - head
+    return f"{text[:head]}\n...[truncated {len(text) - limit} chars]...\n{text[-tail:]}"
 
 
 class Agent:
@@ -94,10 +104,10 @@ Other available agents:
 {json.dumps(other_agents, indent=2)}
 
 Current task:
-{task.model_dump_json(indent=2)}
+{clip_text(task.model_dump_json(indent=2), MAX_CONTEXT_CHARS // 2)}
 
 Context:
-{context}
+{clip_text(context, MAX_CONTEXT_CHARS)}
 
 Available system tools:
 {json.dumps(self.orchestrator.tool_registry.describe() if self.orchestrator.tool_registry else [], indent=2)}
@@ -304,7 +314,8 @@ Return only the requested structured decision.
             status = "approved" if result.approved else "denied"
             details = result.output or result.error or "No output"
             results.append(
-                f"{call.name} ({status}):\n{details}"
+                f"{call.name} ({status}):\n"
+                f"{clip_text(details, MAX_RESULT_CHARS // 2)}"
             )
 
         return "\n\n".join(results)
@@ -324,7 +335,7 @@ Your capabilities:
 {json.dumps(self.capabilities)}
 
 Previous context:
-{context}
+{clip_text(context, MAX_CONTEXT_CHARS)}
 
 Perform the task as far as possible.
 
@@ -389,14 +400,14 @@ Return a useful engineering result containing:
 
                 parts.append(
                     f"Parent result:\n"
-                    f"{parent.result}"
+                    f"{clip_text(parent.result, MAX_RESULT_CHARS)}"
                 )
 
         if task.result:
 
             parts.append(
                 f"Previous result:\n"
-                f"{task.result}"
+                f"{clip_text(task.result, MAX_RESULT_CHARS)}"
             )
 
         return "\n\n".join(
@@ -453,13 +464,13 @@ Return a useful engineering result containing:
 You are reviewing work produced by another AI agent.
 
 Task:
-{task.description}
+{clip_text(task.description, MAX_CONTEXT_CHARS // 2)}
 
 Agent:
 {task.assigned_agent}
 
 Result:
-{result}
+{clip_text(result, MAX_RESULT_CHARS)}
 
 Your capabilities:
 {json.dumps(self.capabilities)}
@@ -573,6 +584,16 @@ Return a structured review.
                     f"[{self.agent_id}] "
                     f"ERROR: {e}"
                 )
+
+                if message.task_id:
+                    failed_task = self.orchestrator.graph.get(
+                        message.task_id
+                    )
+                    if failed_task:
+                        await self.orchestrator.fail_task(
+                            failed_task,
+                            str(e),
+                        )
 
     def stop(self):
 

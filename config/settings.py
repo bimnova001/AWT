@@ -36,3 +36,15 @@ MAX_DEPTH = int(
 MAX_REVIEW_ROUNDS = int(
     os.getenv("MAX_REVIEW_ROUNDS", "2")
 )
+
+MAX_CONTEXT_CHARS = int(
+    os.getenv("MAX_CONTEXT_CHARS", "12000")
+)
+
+MAX_RESULT_CHARS = int(
+    os.getenv("MAX_RESULT_CHARS", "12000")
+)
+
+MAX_OUTPUT_TOKENS = int(
+    os.getenv("MAX_OUTPUT_TOKENS", "1800")
+)

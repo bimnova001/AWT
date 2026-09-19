@@ -879,6 +879,9 @@ RESULT:
             reason
         )
 
+        if task.parent_task_id is None:
+            self.completed = True
+
     # ------------------------------------------------
     # DEPTH
     # ------------------------------------------------
