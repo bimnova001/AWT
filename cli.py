@@ -17,6 +17,7 @@ from core.message_bus import MessageBus
 from core.network import AgentNetwork
 from core.orchestrator import Orchestrator
 from core.text_style import block, style
+from core.error_style import public_error_message
 from providers.groq import GroqProvider
 from tools.security_headers import SecurityHeaderScanner
 from tools.system import ToolRegistry, ToolRequest
@@ -407,7 +408,7 @@ def run_tui() -> int:
         except KeyboardInterrupt:
             print("\nTask cancelled.")
         except (OSError, TimeoutError, ValueError, RuntimeError) as error:
-            print(f"\nError: {error}")
+            print(f"\nError: {public_error_message(error)}")
 
 
 def run_legacy_tui() -> int:
@@ -613,7 +614,7 @@ def main(argv: list[str] | None = None) -> int:
             return update_code()
         return asyncio.run(run_task(args.task, args.timeout))
     except (OSError, ValueError, RuntimeError) as error:
-        print(f"error: {error}", file=sys.stderr)
+        print(f"error: {public_error_message(error)}", file=sys.stderr)
         return 2
 
 

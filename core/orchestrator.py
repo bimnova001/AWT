@@ -14,6 +14,7 @@ from core.task import (
 from core.task_graph import TaskGraph
 from tools.system import ApprovalHandler, ToolRegistry, ToolRequest, ToolResult
 from core.text_style import block, event, style
+from core.error_style import public_error_message
 
 
 class Orchestrator:
@@ -851,7 +852,7 @@ RESULT:
         print()
 
         print(event("FAILED", task.task_id[:8], "red"))
-        print(style(reason, "red"))
+        print(style(public_error_message(reason), "red"))
 
         if task.parent_task_id is None:
             self.completed = True

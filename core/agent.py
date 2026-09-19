@@ -17,6 +17,7 @@ from core.task import (
 )
 from config.settings import MAX_CONTEXT_CHARS, MAX_RESULT_CHARS
 from core.text_style import event, style
+from core.error_style import public_error_message
 
 
 def clip_text(value: object, limit: int) -> str:
@@ -353,6 +354,10 @@ Return a useful engineering result containing:
 - important details
 - limitations
 - next steps if needed
+
+For reviews, distinguish verified findings from assumptions. Do not infer
+file contents, frameworks, endpoints, or model usage from filenames alone.
+If a file was not actually read, say that it was not verified.
 """
 
         return await self.provider.generate(
@@ -582,7 +587,11 @@ Return a structured review.
 
             except Exception as e:
 
-                print(event(self.agent_id, f"ERROR: {e}", "red"))
+                print(event(
+                    self.agent_id,
+                    public_error_message(e),
+                    "red",
+                ))
 
                 if message.task_id:
                     failed_task = self.orchestrator.graph.get(
