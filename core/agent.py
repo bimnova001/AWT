@@ -500,7 +500,8 @@ result is approved.
 Return a structured review.
 """
 
-        review = await self.provider.generate_structured(
+        try:
+            review = await self.provider.generate_structured(
 
             messages=[
 
@@ -560,8 +561,32 @@ Return a structured review.
 
             },
 
-            schema_name="task_review"
+                schema_name="task_review"
 
+            )
+        except Exception as error:
+            review = {
+                "approved": False,
+                "score": 0,
+                "feedback": (
+                    "Reviewer response was invalid, so the result requires another review."
+                ),
+                "required_changes": [
+                    "Retry the independent review with all required fields.",
+                ],
+            }
+            print(event(
+                "REVIEW",
+                f"{public_error_message(error)} Using safe fallback.",
+                "red",
+            ))
+
+        review.setdefault("approved", False)
+        review.setdefault("score", 0)
+        review.setdefault("feedback", "Review response was incomplete.")
+        review.setdefault(
+            "required_changes",
+            ["Retry the independent review with all required fields."],
         )
 
         await self.orchestrator.submit_review(

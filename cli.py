@@ -324,6 +324,7 @@ def print_banner() -> None:
 
 
 def run_tui() -> int:
+    os.environ["AWT_TUI"] = "1"
     try:
         from prompt_toolkit import PromptSession
         from prompt_toolkit.completion import Completer, Completion

@@ -18,7 +18,7 @@ COLORS = {
 
 def style(text: object, color: str | None = None, *, bold: bool = False) -> str:
     value = str(text)
-    if os.getenv("NO_COLOR") or not sys.stdout.isatty():
+    if os.getenv("NO_COLOR") or (not sys.stdout.isatty() and not os.getenv("AWT_TUI")):
         return value
     prefix = COLORS.get(color, "") + (BOLD if bold else "")
     return f"{prefix}{value}{RESET}" if prefix else value
@@ -32,7 +32,7 @@ def highlight_text(content: object) -> str:
     """Add restrained emphasis to common Markdown review structures."""
 
     text = str(content)
-    if os.getenv("NO_COLOR") or not sys.stdout.isatty():
+    if os.getenv("NO_COLOR") or (not sys.stdout.isatty() and not os.getenv("AWT_TUI")):
         return text
 
     lines = []
