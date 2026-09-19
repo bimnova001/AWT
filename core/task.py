@@ -37,6 +37,8 @@ class Task(BaseModel):
 
     description: str
 
+    assigned_role: str | None = None
+
     required_capabilities: list[str] = Field(
         default_factory=list
     )

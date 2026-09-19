@@ -310,6 +310,8 @@ class Orchestrator:
                 description=
                     proposal.description,
 
+                role=proposal.role,
+
                 capabilities=
                     proposal.required_capabilities,
 

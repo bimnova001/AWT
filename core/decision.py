@@ -22,6 +22,11 @@ class ProposedSubtask(BaseModel):
 
     description: str
 
+    role: str = Field(
+        default="generalist",
+        description="Temporary role for this subtask, chosen from its requirements.",
+    )
+
     required_capabilities: list[str] = Field(
         default_factory=list
     )

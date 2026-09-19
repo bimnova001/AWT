@@ -46,6 +46,7 @@ class TaskGraph:
         self,
         parent: Task,
         description: str,
+        role: str,
         capabilities: list[str],
         created_by: str,
         target_agent: str | None = None
@@ -56,6 +57,8 @@ class TaskGraph:
             parent_task_id=parent.task_id,
 
             description=description,
+
+            assigned_role=role,
 
             required_capabilities=capabilities,
 

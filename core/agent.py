@@ -108,6 +108,11 @@ Other available agents:
 Current task:
 {clip_text(task.model_dump_json(indent=2), MAX_CONTEXT_CHARS // 2)}
 
+The task's assigned_role is temporary. It is the responsibility needed for
+this task, not your permanent identity. Choose a precise role for every
+subtask you propose (for example: implementation, test design, security
+review, or research).
+
 Context:
 {clip_text(context, MAX_CONTEXT_CHARS)}
 
@@ -334,6 +339,9 @@ You are working on this task:
 Your capabilities:
 {json.dumps(self.capabilities)}
 
+Temporary role for this task:
+{task.assigned_role or "generalist"}
+
 Previous context:
 {clip_text(context, MAX_CONTEXT_CHARS)}
 
@@ -481,6 +489,9 @@ Result:
 
 Your capabilities:
 {json.dumps(self.capabilities)}
+
+Temporary role for the work being reviewed:
+{task.assigned_role or "generalist"}
 
 Evaluate the result.
 

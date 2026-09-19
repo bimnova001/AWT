@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from urllib.request import Request, urlopen
 
-from config.settings import GROQ_KEYS, GROQ_MODEL, MAX_DEPTH, MAX_REVIEW_ROUNDS, MAX_TASKS
+from config.settings import AGENT_COUNT, GROQ_KEYS, GROQ_MODEL, MAX_DEPTH, MAX_REVIEW_ROUNDS, MAX_TASKS
 from core.agent import Agent
 from core.message_bus import MessageBus
 from core.network import AgentNetwork
@@ -23,11 +23,27 @@ from tools.security_headers import SecurityHeaderScanner
 from tools.system import ToolRegistry, ToolRequest
 
 
-AGENT_CONFIGS = (
-    ("agent_01", ("research", "analysis", "web")),
-    ("agent_02", ("python", "programming", "debugging")),
-    ("agent_03", ("security", "testing", "analysis")),
+# Agents are general-purpose workers. A role belongs to a task and is chosen
+# dynamically by the delegating agent; it must never be pinned to an agent ID.
+GENERAL_CAPABILITIES = (
+    "generalist",
+    "analysis",
+    "research",
+    "implementation",
+    "debugging",
+    "testing",
+    "security-review",
+    "review",
 )
+
+
+def agent_configs() -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Build the team from the available provider capacity, not fixed roles."""
+
+    return tuple(
+        (f"agent_{index:02d}", GENERAL_CAPABILITIES)
+        for index in range(1, AGENT_COUNT + 1)
+    )
 
 PERMISSION_MODES = {
     "always": "Always ask",
@@ -272,9 +288,7 @@ def build_system() -> tuple[Orchestrator, list[Agent]]:
         approval_handler=approve_tool_request,
     )
     agents: list[Agent] = []
-    for index, (agent_id, capabilities) in enumerate(AGENT_CONFIGS):
-        if index >= len(GROQ_KEYS):
-            break
+    for index, (agent_id, capabilities) in enumerate(agent_configs()):
         agent = Agent(
             agent_id=agent_id,
             provider=GroqProvider(GROQ_KEYS[index], GROQ_MODEL, f"groq_{index + 1}"),
@@ -378,7 +392,7 @@ def run_tui() -> int:
             f" <b>AWT</b> v{APP_VERSION}  "
             f"<b>Workspace</b> {Path.cwd()}  "
             f"<b>Model</b> {GROQ_MODEL}  "
-            f"<b>Agents</b> {len(GROQ_KEYS)} ready  "
+            f"<b>Agents</b> {AGENT_COUNT} ready  "
             f"<b>Tools</b> {PERMISSION_MODES[permission_mode]}"
         )
 
@@ -438,7 +452,7 @@ def run_legacy_tui() -> int:
     print_banner()
     print(f"\nWorkspace  {Path.cwd()}")
     print(f"Model      {GROQ_MODEL}")
-    print(f"Agents     {len(GROQ_KEYS)} provider key(s) configured")
+    print(f"Agents     {AGENT_COUNT} dynamic worker(s) configured")
     print("\nAsk anything. AWT will plan, delegate, execute, review, and report.")
     print("Type /help for commands. Ctrl+C or /exit closes the workspace.")
 
@@ -562,10 +576,9 @@ Commands:
 
 def tui_show_agents() -> None:
     print("\nAvailable agents")
-    for index, (agent_id, capabilities) in enumerate(AGENT_CONFIGS):
-        available = index < len(GROQ_KEYS)
-        status = "ready" if available else "no provider key"
-        print(f"  {agent_id:<10} [{status:<16}] {', '.join(capabilities)}")
+    print(f"  Team size: {AGENT_COUNT} (limited by configured provider keys)")
+    for agent_id, capabilities in agent_configs():
+        print(f"  {agent_id:<10} [ready] dynamic role; {', '.join(capabilities)}")
 
 
 def tui_show_tools() -> None:
@@ -655,6 +668,7 @@ def tui_show_configuration() -> None:
     print("\nRuntime configuration")
     print(f"Model: {GROQ_MODEL}")
     print(f"Configured provider keys: {len(GROQ_KEYS)}")
+    print(f"Dynamic agents: {AGENT_COUNT}")
     print(f"Task limit: {MAX_TASKS}")
     print(f"Depth limit: {MAX_DEPTH}")
     print(f"Review rounds: {MAX_REVIEW_ROUNDS}")

@@ -20,6 +20,28 @@ def get_groq_keys() -> list[str]:
 
 GROQ_KEYS = get_groq_keys()
 
+
+def get_agent_count() -> int:
+    """Return the configured team size without exceeding available providers."""
+
+    available = len(GROQ_KEYS)
+    configured = os.getenv("MAX_AGENTS")
+    if not configured:
+        return available
+
+    try:
+        requested = int(configured)
+    except ValueError as error:
+        raise ValueError("MAX_AGENTS must be a positive integer.") from error
+
+    if requested < 1:
+        raise ValueError("MAX_AGENTS must be at least 1.")
+
+    return min(requested, available)
+
+
+AGENT_COUNT = get_agent_count()
+
 GROQ_MODEL = os.getenv(
     "GROQ_MODEL",
     "openai/gpt-oss-20b"
