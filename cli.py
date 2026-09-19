@@ -165,6 +165,9 @@ def update_code() -> int:
         raise RuntimeError(f"AWT source is not a Git checkout: {source_path}")
     if status.stdout.strip():
         print(f"AWT source has uncommitted changes: {source_path}")
+        print("Files blocking update:")
+        for change in status.stdout.strip().splitlines():
+            print(f"  {change}")
         print("Commit or stash those changes before updating AWT code.")
         return 2
     return run_process(
@@ -286,6 +289,10 @@ async def run_task(task_description: str, timeout: float) -> int:
         for worker in workers:
             worker.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
+        await asyncio.gather(
+            *(agent.provider.close() for agent in agents if hasattr(agent.provider, "close")),
+            return_exceptions=True,
+        )
 
     orchestrator.print_tree()
     if root.result:
