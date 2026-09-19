@@ -91,9 +91,9 @@ def scan_headers_command(args: argparse.Namespace) -> int:
     return 1
 
 
-def run_process(command: list[str]) -> int:
+def run_process(command: list[str], cwd: Path | None = None) -> int:
     print(f"\n$ {' '.join(command)}")
-    completed = subprocess.run(command, cwd=Path.cwd(), check=False)
+    completed = subprocess.run(command, cwd=cwd or Path.cwd(), check=False)
     return completed.returncode
 
 
@@ -117,6 +117,12 @@ def installation_info() -> dict[str, str]:
     }
 
 
+def awt_source_path() -> Path:
+    """Return the installed AWT source checkout, not the user's project cwd."""
+
+    return Path(__file__).resolve().parent
+
+
 def print_installation_info() -> None:
     info = installation_info()
     print("\nAWT installation")
@@ -135,7 +141,7 @@ def install_awt(skip_confirmation: bool = False) -> int:
     ):
         print("Installation cancelled.")
         return 0
-    project_path = Path(__file__).resolve().parent
+    project_path = awt_source_path()
     return run_process([
         sys.executable,
         "-m",
@@ -147,19 +153,24 @@ def install_awt(skip_confirmation: bool = False) -> int:
 
 
 def update_code() -> int:
+    source_path = awt_source_path()
     status = subprocess.run(
         ["git", "status", "--porcelain"],
-        cwd=Path.cwd(),
+        cwd=source_path,
         capture_output=True,
         text=True,
         check=False,
     )
     if status.returncode != 0:
-        raise RuntimeError("This directory is not a Git checkout.")
+        raise RuntimeError(f"AWT source is not a Git checkout: {source_path}")
     if status.stdout.strip():
-        print("Workspace has uncommitted changes. Commit or stash them before updating code.")
+        print(f"AWT source has uncommitted changes: {source_path}")
+        print("Commit or stash those changes before updating AWT code.")
         return 2
-    return run_process(["git", "pull", "--ff-only", "origin", "main"])
+    return run_process(
+        ["git", "pull", "--ff-only", "origin", "main"],
+        cwd=source_path,
+    )
 
 
 def confirm_action(message: str) -> bool:
@@ -173,7 +184,7 @@ def check_code_update() -> tuple[str, str]:
     try:
         local = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=Path.cwd(),
+            cwd=awt_source_path(),
             capture_output=True,
             text=True,
             check=False,
@@ -181,7 +192,7 @@ def check_code_update() -> tuple[str, str]:
         )
         remote = subprocess.run(
             ["git", "ls-remote", "origin", "refs/heads/main"],
-            cwd=Path.cwd(),
+            cwd=awt_source_path(),
             capture_output=True,
             text=True,
             check=False,
