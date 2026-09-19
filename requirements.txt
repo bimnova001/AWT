@@ -1,0 +1,4 @@
+groq
+pydantic
+python-dotenv
+prompt_toolkit>=3.0

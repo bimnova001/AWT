@@ -19,6 +19,25 @@
                      ▼
                 Task Graph
 
+User
+ │
+ ▼
+Orchestrator
+ │
+ ▼
+Task
+ │
+ ▼
+Agent Network
+ │
+ ├───────────────┐
+ │               │
+ ▼               ▼
+Agent A  <----> Agent B
+   ▲               │
+   │               │
+   └──── Agent C <-┘
+
 Agent เสนอ งาน
 Orchestrator อนุมัติ/จัดการ lifecycle
 
@@ -53,3 +72,37 @@ Orchestrator มีหน้าที่แค่:
     คุม token budget
 
 Agent จะสร้าง Task กันเอง
+
+
+
+                    ┌─────────────────────┐
+                    │     ORCHESTRATOR    │
+                    │                     │
+                    │ State               │
+                    │ Task Graph          │
+                    │ Permissions         │
+                    │ Budget              │
+                    │ Timeout             │
+                    │ Validation          │
+                    └──────────┬──────────┘
+                               │
+                       MessageBus
+                               │
+             ┌─────────────────┼─────────────────┐
+             │                 │                 │
+             ▼                 ▼                 ▼
+        ┌─────────┐       ┌─────────┐       ┌─────────┐
+        │ Agent 01│       │ Agent 02│       │ Agent 03│
+        │         │       │         │       │         │
+        │ research│       │ python  │       │ security│
+        │ analysis│       │ coding  │       │ testing │
+        │ web     │       │ debug   │       │ analysis│
+        └─────────┘       └─────────┘       └─────────┘
+             │                 │                 │
+             └─────────────────┼─────────────────┘
+                               │
+                         Provider Layer
+                               │
+                ┌──────────────┴──────────────┐
+                │                             │
+             Groq Pool                   OpenRouter

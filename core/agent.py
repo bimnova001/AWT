@@ -1,0 +1,573 @@
+import json
+
+from core.decision import (
+    AgentDecision,
+    DecisionType
+)
+from tools.system import ToolRequest
+
+from core.protocol import (
+    AgentMessage,
+    MessageType
+)
+
+from core.task import (
+    Task,
+    TaskStatus
+)
+
+
+class Agent:
+
+    def __init__(
+        self,
+        agent_id,
+        provider,
+        capabilities,
+        bus,
+        network,
+        orchestrator
+    ):
+
+        self.agent_id = agent_id
+
+        self.provider = provider
+
+        self.capabilities = capabilities
+
+        self.bus = bus
+
+        self.network = network
+
+        self.orchestrator = orchestrator
+
+        self.running = False
+
+    def info(self):
+
+        return {
+
+            "agent_id":
+                self.agent_id,
+
+            "capabilities":
+                self.capabilities,
+
+        }
+
+    async def send(
+        self,
+        message
+    ):
+
+        await self.bus.send(
+            message
+        )
+
+    async def decide(
+        self,
+        task: Task,
+        context: str = ""
+    ) -> AgentDecision:
+
+        other_agents = [
+
+            agent
+
+            for agent in self.network.describe()
+
+            if agent["agent_id"]
+            != self.agent_id
+
+        ]
+
+        prompt = f"""
+You are an autonomous AI agent inside
+a dynamic multi-agent collaboration system.
+
+You do NOT have a fixed role.
+
+Your capabilities:
+{json.dumps(self.capabilities, indent=2)}
+
+Other available agents:
+{json.dumps(other_agents, indent=2)}
+
+Current task:
+{task.model_dump_json(indent=2)}
+
+Context:
+{context}
+
+Available system tools:
+{json.dumps(self.orchestrator.tool_registry.describe() if self.orchestrator.tool_registry else [], indent=2)}
+
+Your job is to decide what should happen next.
+
+Available decisions:
+
+WORK
+- You can solve the task yourself.
+- Do NOT create subtasks unless necessary.
+
+DELEGATE
+- The task is better divided into smaller tasks.
+- Create one or more subtasks.
+- Choose agents based on capabilities.
+- Do not delegate everything automatically.
+
+ASK
+- You need information from another agent.
+
+COMPLETE
+- The task is already solved.
+- Return the result.
+
+REJECT
+- You cannot reasonably contribute.
+
+Important:
+
+1. Never assume an agent has a capability it does not list.
+2. Prefer solving tasks yourself when you are capable.
+3. Delegate only meaningful independent work.
+4. Avoid duplicate work.
+5. Do not create unnecessary subtasks.
+6. If working on a subtask, produce a useful concrete result.
+7. If a task requires multiple disciplines, decomposition is encouraged.
+8. You are not a manager. You are an autonomous collaborator.
+9. Propose tool_calls only when necessary. The orchestrator validates every
+    call, and the user must approve write_file and run_shell.
+
+Return only the requested structured decision.
+"""
+
+        result = await self.provider.generate_structured(
+
+            messages=[
+
+                {
+                    "role": "system",
+                    "content":
+                        "You are an autonomous "
+                        "multi-agent worker."
+                },
+
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+
+            ],
+
+            schema=
+                AgentDecision.model_json_schema(),
+
+            schema_name=
+                "agent_decision"
+
+        )
+
+        return AgentDecision.model_validate(
+            result
+        )
+
+    async def execute(
+        self,
+        task: Task
+    ):
+
+        task.status = TaskStatus.RUNNING
+
+        task.attempts += 1
+
+        context = self.build_context(
+            task
+        )
+
+        decision = await self.decide(
+            task,
+            context
+        )
+
+        print()
+        print(
+            f"[{self.agent_id}] "
+            f"{task.task_id[:8]} "
+            f"=> {decision.decision.value}"
+        )
+
+        print(
+            f"Reason: "
+            f"{decision.reason}"
+        )
+
+        tool_context = await self.run_tool_calls(task, decision)
+        if tool_context:
+            context = f"{context}\n\nTool results:\n{tool_context}"
+
+        if decision.decision == DecisionType.WORK:
+
+            result = await self.work(
+                task,
+                context
+            )
+
+            await self.orchestrator.submit_result(
+                task,
+                self,
+                result
+            )
+
+            return
+
+        if decision.decision == DecisionType.COMPLETE:
+
+            await self.orchestrator.submit_result(
+
+                task,
+
+                self,
+
+                decision.result
+                or "Task completed."
+
+            )
+
+            return
+
+        if decision.decision == DecisionType.DELEGATE:
+
+            await self.orchestrator.handle_delegation(
+
+                task,
+
+                self,
+
+                decision
+
+            )
+
+            return
+
+        if decision.decision == DecisionType.ASK:
+
+            await self.orchestrator.handle_question(
+
+                task,
+
+                self,
+
+                decision
+
+            )
+
+            return
+
+        if decision.decision == DecisionType.REJECT:
+
+            await self.orchestrator.handle_rejection(
+
+                task,
+
+                self,
+
+                decision
+
+            )
+
+            return
+
+    async def run_tool_calls(
+        self,
+        task: Task,
+        decision: AgentDecision
+    ) -> str:
+
+        results = []
+
+        for call in decision.tool_calls:
+            result = await self.orchestrator.execute_tool(
+                ToolRequest(
+                    name=call.name,
+                    arguments=call.arguments,
+                    agent_id=self.agent_id,
+                    task_id=task.task_id,
+                )
+            )
+            status = "approved" if result.approved else "denied"
+            details = result.output or result.error or "No output"
+            results.append(
+                f"{call.name} ({status}):\n{details}"
+            )
+
+        return "\n\n".join(results)
+
+    async def work(
+        self,
+        task: Task,
+        context: str
+    ):
+
+        prompt = f"""
+You are working on this task:
+
+{task.description}
+
+Your capabilities:
+{json.dumps(self.capabilities)}
+
+Previous context:
+{context}
+
+Perform the task as far as possible.
+
+Do not pretend to have executed tools
+that you do not actually have.
+
+If external information or tools are unavailable,
+state the limitation clearly.
+
+Return a useful engineering result containing:
+
+- what you determined
+- implementation/reasoning
+- important details
+- limitations
+- next steps if needed
+"""
+
+        return await self.provider.generate(
+
+            messages=[
+
+                {
+                    "role": "system",
+                    "content":
+                        "You are a productive "
+                        "engineering agent."
+                },
+
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+
+            ]
+
+        )
+
+    def build_context(
+        self,
+        task: Task
+    ):
+
+        parent = None
+
+        if task.parent_task_id:
+
+            parent = self.orchestrator.graph.get(
+                task.parent_task_id
+            )
+
+        parts = []
+
+        if parent:
+
+            parts.append(
+                f"Parent task:\n"
+                f"{parent.description}"
+            )
+
+            if parent.result:
+
+                parts.append(
+                    f"Parent result:\n"
+                    f"{parent.result}"
+                )
+
+        if task.result:
+
+            parts.append(
+                f"Previous result:\n"
+                f"{task.result}"
+            )
+
+        return "\n\n".join(
+            parts
+        )
+
+    async def handle_message(
+        self,
+        message: AgentMessage
+    ):
+
+        print()
+
+        print(
+            f"[{self.agent_id}] "
+            f"received "
+            f"{message.type.value} "
+            f"from "
+            f"{message.from_agent}"
+        )
+
+        if message.type == MessageType.TASK_OFFER:
+
+            task = self.orchestrator.graph.get(
+                message.task_id
+            )
+
+            if task:
+
+                await self.execute(
+                    task
+                )
+
+        elif message.type == MessageType.REVIEW_REQUEST:
+
+            task = self.orchestrator.graph.get(
+                message.task_id
+            )
+
+            if task:
+
+                await self.review(
+                    task
+                )
+
+    async def review(
+        self,
+        task: Task
+    ):
+
+        result = task.result or ""
+
+        prompt = f"""
+You are reviewing work produced by another AI agent.
+
+Task:
+{task.description}
+
+Agent:
+{task.assigned_agent}
+
+Result:
+{result}
+
+Your capabilities:
+{json.dumps(self.capabilities)}
+
+Evaluate the result.
+
+Check:
+
+1. correctness
+2. completeness
+3. technical quality
+4. whether the result actually addresses the task
+5. obvious errors or missing requirements
+
+Return a structured review.
+"""
+
+        review = await self.provider.generate_structured(
+
+            messages=[
+
+                {
+                    "role": "system",
+                    "content":
+                        "You are an independent reviewer."
+                },
+
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+
+            ],
+
+            schema={
+
+                "type": "object",
+
+                "properties": {
+
+                    "approved": {
+                        "type": "boolean"
+                    },
+
+                    "score": {
+                        "type": "number"
+                    },
+
+                    "feedback": {
+                        "type": "string"
+                    },
+
+                    "required_changes": {
+
+                        "type": "array",
+
+                        "items": {
+                            "type": "string"
+                        }
+
+                    }
+
+                },
+
+                "required": [
+
+                    "approved",
+                    "score",
+                    "feedback",
+                    "required_changes"
+
+                ],
+
+                "additionalProperties": False
+
+            },
+
+            schema_name="task_review"
+
+        )
+
+        await self.orchestrator.submit_review(
+
+            task,
+
+            self,
+
+            review
+
+        )
+
+    async def run(self):
+
+        self.running = True
+
+        while self.running:
+
+            message = await self.bus.receive(
+                self.agent_id
+            )
+
+            try:
+
+                await self.handle_message(
+                    message
+                )
+
+            except Exception as e:
+
+                print(
+                    f"[{self.agent_id}] "
+                    f"ERROR: {e}"
+                )
+
+    def stop(self):
+
+        self.running = False
