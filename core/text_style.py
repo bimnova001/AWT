@@ -28,6 +28,29 @@ def event(label: str, message: str, color: str = "cyan") -> str:
     return f"{style(f'[{label}]', color, bold=True)} {message}"
 
 
+def highlight_text(content: object) -> str:
+    """Add restrained emphasis to common Markdown review structures."""
+
+    text = str(content)
+    if os.getenv("NO_COLOR") or not sys.stdout.isatty():
+        return text
+
+    lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("###") or stripped.startswith("##"):
+            lines.append(style(line, "magenta", bold=True))
+        elif stripped.startswith("#") or stripped.startswith("**"):
+            lines.append(style(line, "cyan", bold=True))
+        elif stripped.startswith("|") or stripped in {"---", "***"}:
+            lines.append(style(line, "blue"))
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            lines.append(style(line, "yellow"))
+        else:
+            lines.append(line)
+    return "\n".join(lines)
+
+
 def block(title: str, content: object, color: str = "green") -> str:
     line = "=" * 68
     return "\n".join(
@@ -35,7 +58,7 @@ def block(title: str, content: object, color: str = "green") -> str:
             style(line, color),
             style(title, color, bold=True),
             style(line, color),
-            str(content),
+            highlight_text(content),
             style(line, color),
         )
     )

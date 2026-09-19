@@ -492,6 +492,11 @@ Check:
 4. whether the result actually addresses the task
 5. obvious errors or missing requirements
 
+Your response must include every field in the required schema:
+approved (boolean), score (number from 0 to 10), feedback (string),
+and required_changes (array of strings). Do not omit score even when the
+result is approved.
+
 Return a structured review.
 """
 

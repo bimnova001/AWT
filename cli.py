@@ -298,7 +298,13 @@ async def run_task(task_description: str, timeout: float) -> int:
 
     orchestrator.print_tree()
     if root.result:
-        print(block("FINAL RESULT", root.result, "green"))
+        result_title = (
+            "FINAL RESULT"
+            if root.status.value == "COMPLETED"
+            else "PARTIAL RESULT (TASK FAILED)"
+        )
+        result_color = "green" if root.status.value == "COMPLETED" else "yellow"
+        print(block(result_title, root.result, result_color))
     return 0 if root.status.value == "COMPLETED" else 1
 
 

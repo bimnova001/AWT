@@ -50,6 +50,11 @@ class GroqProvider(ModelProvider):
         status_code = getattr(error, "status_code", None)
         return isinstance(status_code, int) and 400 <= status_code < 500
 
+    @staticmethod
+    def _is_schema_validation_error(error: Exception) -> bool:
+        text = str(error).lower()
+        return "json_validate_failed" in text or "does not match the expected schema" in text
+
     async def close(self) -> None:
         await self.client.close()
 
@@ -139,6 +144,16 @@ class GroqProvider(ModelProvider):
                 return json.loads(content)
 
             except Exception as error:
+
+                if self._is_schema_validation_error(error) and attempt == 0:
+                    messages = [*messages, {
+                        "role": "user",
+                        "content": (
+                            "Schema correction: return valid JSON with every required "
+                            "property present. Do not omit any field."
+                        ),
+                    }]
+                    continue
 
                 if self._is_non_retryable(error):
                     raise
