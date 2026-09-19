@@ -4,7 +4,9 @@ import argparse
 import asyncio
 import json
 import os
+import subprocess
 import sys
+import sysconfig
 from collections.abc import Mapping
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -25,12 +27,22 @@ AGENT_CONFIGS = (
     ("agent_03", ("security", "testing", "analysis")),
 )
 
+APP_NAME = "AWT Agent Worker"
+APP_VERSION = "0.1.0"
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="awt", description="Agent Worker Team tools")
     subparsers = parser.add_subparsers(dest="command")
 
     subparsers.add_parser("tui", help="Open the interactive terminal UI.")
+    install_parser = subparsers.add_parser("install", help="Install AWT and terminal launchers.")
+    install_parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt.")
+
+    update_parser = subparsers.add_parser("update", help="Update dependencies or code safely.")
+    update_group = update_parser.add_mutually_exclusive_group(required=True)
+    update_group.add_argument("--deps", action="store_true", help="Upgrade Python dependencies.")
+    update_group.add_argument("--code", action="store_true", help="Fast-forward the Git checkout.")
 
     scan_parser = subparsers.add_parser("scan-headers", help="Inspect HTTP security headers.")
     scan_parser.add_argument("url", nargs="?", help="URL to inspect")
@@ -77,6 +89,101 @@ def scan_headers_command(args: argparse.Namespace) -> int:
         print(f"[{finding['severity'].upper()}] {finding['header']}: {finding['message']}")
         print(f"  Recommendation: {finding['recommendation']}")
     return 1
+
+
+def run_process(command: list[str]) -> int:
+    print(f"\n$ {' '.join(command)}")
+    completed = subprocess.run(command, cwd=Path.cwd(), check=False)
+    return completed.returncode
+
+
+def install_dependencies(upgrade: bool = False) -> int:
+    requirements = Path(__file__).with_name("requirements.txt")
+    if not requirements.is_file():
+        raise RuntimeError(f"Missing dependency file: {requirements}")
+    command = [sys.executable, "-m", "pip", "install", "-r", str(requirements)]
+    if upgrade:
+        command.insert(4, "--upgrade")
+    return run_process(command)
+
+
+def installation_info() -> dict[str, str]:
+    return {
+        "name": APP_NAME,
+        "version": APP_VERSION,
+        "project": str(Path(__file__).resolve().parent),
+        "launchers": str(Path(sysconfig.get_path("scripts")).resolve()),
+        "commands": "AWT, awt, codex, opencode",
+    }
+
+
+def print_installation_info() -> None:
+    info = installation_info()
+    print("\nAWT installation")
+    print(f"  Name:             {info['name']}")
+    print(f"  Version:          {info['version']}")
+    print(f"  Project source:   {info['project']}")
+    print(f"  Launcher path:    {info['launchers']}")
+    print(f"  Commands:         {info['commands']}")
+    print("  Install mode:     editable package")
+
+
+def install_awt(skip_confirmation: bool = False) -> int:
+    print_installation_info()
+    if not skip_confirmation and not confirm_action(
+        "Install AWT and create terminal launchers?"
+    ):
+        print("Installation cancelled.")
+        return 0
+    project_path = Path(__file__).resolve().parent
+    return run_process([
+        sys.executable,
+        "-m",
+        "pip",
+        "install",
+        "--editable",
+        str(project_path),
+    ])
+
+
+def update_code() -> int:
+    status = subprocess.run(
+        ["git", "status", "--porcelain"],
+        cwd=Path.cwd(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if status.returncode != 0:
+        raise RuntimeError("This directory is not a Git checkout.")
+    if status.stdout.strip():
+        print("Workspace has uncommitted changes. Commit or stash them before updating code.")
+        return 2
+    return run_process(["git", "pull", "--ff-only", "origin", "main"])
+
+
+def confirm_action(message: str) -> bool:
+    answer = input(f"{message} [y/N]: ").strip().lower()
+    return answer in {"y", "yes"}
+
+
+def update_tui() -> None:
+    print("\nUpdate options")
+    print("1. Install missing dependencies")
+    print("2. Upgrade Python dependencies")
+    print("3. Update code from origin/main")
+    print("0. Cancel")
+    choice = input("Select: ").strip()
+    if choice == "1" and confirm_action("Install dependencies from requirements.txt?"):
+        install_dependencies()
+    elif choice == "2" and confirm_action("Upgrade dependencies in this Python environment?"):
+        install_dependencies(upgrade=True)
+    elif choice == "3":
+        print("Code update uses git pull --ff-only and refuses dirty workspaces.")
+        if confirm_action("Pull latest code from origin/main?"):
+            update_code()
+    elif choice != "0":
+        print("Cancelled.")
 
 
 def build_system() -> tuple[Orchestrator, list[Agent]]:
@@ -164,8 +271,10 @@ def run_tui() -> int:
         "/debug": "View task/debug info",
         "/exit": "Exit the app",
         "/help": "Show help",
+        "/install": "Install dependencies",
         "/scan": "Scan HTTP security headers",
         "/tools": "View system tools and permissions",
+        "/update": "Update dependencies or code",
     }
 
     class CommandCompleter(Completer):
@@ -233,6 +342,8 @@ def run_tui() -> int:
                     return 0
             else:
                 tui_run_task(prompt)
+        except KeyboardInterrupt:
+            print("\nTask cancelled.")
         except (OSError, TimeoutError, ValueError, RuntimeError) as error:
             print(f"\nError: {error}")
 
@@ -278,6 +389,10 @@ def handle_tui_command(command: str) -> int:
         tui_show_configuration()
     elif name == "/tools":
         tui_show_tools()
+    elif name == "/install":
+        install_awt()
+    elif name == "/update":
+        update_tui()
     elif name == "/scan":
         tui_scan_headers(argument)
     else:
@@ -348,6 +463,8 @@ Project prompts:
 Commands:
   /agents              Show available capabilities
   /config              Show runtime limits and provider status
+    /install             Install dependencies from requirements.txt
+    /update              Update dependencies or code safely
     /tools               Show available system tools and permissions
   /scan [URL]          Scan HTTP security headers
   /help                Show this help
@@ -426,6 +543,12 @@ def main(argv: list[str] | None = None) -> int:
             return run_tui()
         if args.command == "scan-headers":
             return scan_headers_command(args)
+        if args.command == "install":
+            return install_awt(args.yes)
+        if args.command == "update":
+            if args.deps:
+                return install_dependencies(upgrade=True)
+            return update_code()
         return asyncio.run(run_task(args.task, args.timeout))
     except (OSError, ValueError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)

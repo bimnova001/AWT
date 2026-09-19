@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "awt-agent-worker"
+version = "0.1.0"
+description = "Dynamic multi-agent collaboration workspace"
+requires-python = ">=3.10"
+dependencies = [
+    "groq",
+    "pydantic",
+    "python-dotenv",
+    "prompt_toolkit>=3.0",
+]
+
+[project.scripts]
+AWT = "awt_launcher:main"
+awt = "awt_launcher:main"
+codex = "awt_launcher:main"
+opencode = "awt_launcher:main"
+
+[tool.setuptools]
+py-modules = ["awt_launcher", "cli", "main"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["config*", "core*", "providers*", "tools*"]

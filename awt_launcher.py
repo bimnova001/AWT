@@ -1,4 +1,4 @@
-"""Stable launcher entry point for the installed AWT command."""
+"""Console-script launcher with an environment-safe module name."""
 
 import importlib.util
 from pathlib import Path
@@ -12,7 +12,3 @@ def main(argv: list[str] | None = None) -> int:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.main(argv)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main(["tui"]))

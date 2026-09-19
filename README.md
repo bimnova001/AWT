@@ -17,6 +17,26 @@ python -m cli
 
 It opens a project workspace where normal text starts an engineering task. AWT sends the task through the real orchestrator loop: initial decision, dynamic delegation, execution, independent review, rework, aggregation, and final result. Use `/agents`, `/config`, `/tools`, `/scan`, `/help`, and `/exit` for workspace commands. `python main.py` opens the same UI.
 
+Install or update from the terminal:
+
+```powershell
+python -m cli install
+# skip confirmation when running in automation
+python -m cli install --yes
+python -m cli update --deps
+python -m cli update --code
+```
+
+The TUI also provides `/install` and `/update`. `/install` shows the application version, source path, launcher path, and commands before asking for confirmation. It installs the editable package and creates `AWT`, `awt`, `codex`, and `opencode` launchers. Code updates use `git pull --ff-only origin main` and refuse to run when the workspace has uncommitted changes. Dependency installation uses the active Python interpreter (`python -m pip`) and reads [requirements.txt](requirements.txt).
+
+After installation, start the workspace directly from any terminal:
+
+```powershell
+AWT
+```
+
+`codex`, `opencode`, and `awt` are aliases to the same AWT TUI entry point.
+
 ### System tools and safety
 
 Agents can propose these built-in tools through structured decisions:
