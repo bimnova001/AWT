@@ -55,6 +55,22 @@ class GroqProvider(ModelProvider):
         text = str(error).lower()
         return "json_validate_failed" in text or "does not match the expected schema" in text
 
+    @staticmethod
+    def _is_tool_use_error(error: Exception) -> bool:
+        text = str(error).lower()
+        return "tool_use_failed" in text or "tool choice is none" in text
+
+    @staticmethod
+    def _tool_guard_message() -> dict[str, str]:
+        return {
+            "role": "user",
+            "content": (
+                "Do not call tools or emit tool-call JSON. Use only the requested "
+                "response format and return the answer directly. AWT executes tools "
+                "separately through its orchestrator."
+            ),
+        }
+
     async def close(self) -> None:
         await self.client.close()
 
@@ -86,6 +102,10 @@ class GroqProvider(ModelProvider):
                 )
 
             except Exception as error:
+
+                if self._is_tool_use_error(error) and attempt == 0:
+                    messages = [*messages, self._tool_guard_message()]
+                    continue
 
                 if self._is_non_retryable(error):
                     raise
@@ -144,6 +164,10 @@ class GroqProvider(ModelProvider):
                 return json.loads(content)
 
             except Exception as error:
+
+                if self._is_tool_use_error(error) and attempt == 0:
+                    messages = [*messages, self._tool_guard_message()]
+                    continue
 
                 if self._is_schema_validation_error(error) and attempt == 0:
                     messages = [*messages, {

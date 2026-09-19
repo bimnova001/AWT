@@ -59,6 +59,14 @@ class ToolRegistry:
         ]
 
     def execute(self, request: ToolRequest) -> ToolResult:
+        allowed = {item["name"] for item in self.describe()}
+        if request.name not in allowed:
+            return ToolResult(
+                request.name,
+                False,
+                "",
+                f"Tool is not available: {request.name}",
+            )
         try:
             output = getattr(self, f"_tool_{request.name}")(**request.arguments)
             return ToolResult(request.name, True, output)
