@@ -27,7 +27,7 @@ python -m cli update --deps
 python -m cli update --code
 ```
 
-The TUI also provides `/install` and `/update`. `/install` shows the application version, source path, launcher path, and commands before asking for confirmation. It installs the editable package and creates `AWT`, `awt`, `codex`, and `opencode` launchers. `/update` shows the current AWT version and checks `origin/main` for a newer commit before offering dependency or code updates. Code updates use `git pull --ff-only origin main` and refuse to run when the workspace has uncommitted changes. Dependency installation uses the active Python interpreter (`python -m pip`) and reads [requirements.txt](requirements.txt).
+The TUI also provides `/install`, `/update`, and `/permissions`. Permission modes are `Always ask` (default), `Ask once`, `Read-only`, and `Full access`. Full access requires an explicit confirmation and permits approved shell commands in the current workspace; normal mode asks before every write or command. `/install` shows the application version, source path, launcher path, and commands before asking for confirmation. It installs the editable package and creates `AWT`, `awt`, `codex`, and `opencode` launchers. `/update` shows the current AWT version and checks `origin/main` for a newer commit before offering dependency or code updates. Code updates use `git pull --ff-only origin main` and refuse to run when the workspace has uncommitted changes. Dependency installation uses the active Python interpreter (`python -m pip`) and reads [requirements.txt](requirements.txt).
 
 After installation, start the workspace directly from any terminal:
 

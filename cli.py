@@ -29,8 +29,18 @@ AGENT_CONFIGS = (
     ("agent_03", ("security", "testing", "analysis")),
 )
 
+PERMISSION_MODES = {
+    "always": "Always ask",
+    "session": "Ask once per session",
+    "readonly": "Read-only",
+    "full": "Full access",
+}
+
+permission_mode = "always"
+session_approvals: set[str] = set()
+
 APP_NAME = "AWT Agent Worker"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -255,7 +265,10 @@ def build_system() -> tuple[Orchestrator, list[Agent]]:
         max_tasks=MAX_TASKS,
         max_depth=MAX_DEPTH,
         max_review_rounds=MAX_REVIEW_ROUNDS,
-        tool_registry=ToolRegistry(Path.cwd()),
+        tool_registry=ToolRegistry(
+            Path.cwd(),
+            allow_full_shell=permission_mode == "full",
+        ),
         approval_handler=approve_tool_request,
     )
     agents: list[Agent] = []
@@ -340,6 +353,7 @@ def run_tui() -> int:
         "/exit": "Exit the app",
         "/help": "Show help",
         "/install": "Install dependencies",
+        "/permissions": "Change tool permission level",
         "/scan": "Scan HTTP security headers",
         "/tools": "View system tools and permissions",
         "/update": "Update dependencies or code",
@@ -364,7 +378,8 @@ def run_tui() -> int:
             f" <b>AWT</b> v{APP_VERSION}  "
             f"<b>Workspace</b> {Path.cwd()}  "
             f"<b>Model</b> {GROQ_MODEL}  "
-            f"<b>Agents</b> {len(GROQ_KEYS)} ready"
+            f"<b>Agents</b> {len(GROQ_KEYS)} ready  "
+            f"<b>Tools</b> {PERMISSION_MODES[permission_mode]}"
         )
 
     style = Style.from_dict(
@@ -459,6 +474,8 @@ def handle_tui_command(command: str) -> int:
         tui_show_configuration()
     elif name == "/tools":
         tui_show_tools()
+    elif name in {"/permissions", "/permission", "/perms"}:
+        configure_permissions()
     elif name == "/install":
         install_awt()
     elif name == "/update":
@@ -536,6 +553,7 @@ Commands:
     /install             Install dependencies from requirements.txt
     /update              Update dependencies or code safely
     /tools               Show available system tools and permissions
+    /permissions         Change tool permission level
   /scan [URL]          Scan HTTP security headers
   /help                Show this help
   /exit                Close AWT
@@ -557,13 +575,49 @@ def tui_show_tools() -> None:
         print(f"  {tool['name']:<14} [{approval}] {tool['description']}")
 
 
+def configure_permissions() -> None:
+    global permission_mode
+
+    print("\nTool permission level")
+    print(f"Current: {PERMISSION_MODES[permission_mode]}")
+    print("1. Always ask      Ask before every write or command")
+    print("2. Ask once        Approve each tool type once per AWT session")
+    print("3. Read-only       Deny write_file and run_shell")
+    print("4. Full access     Allow shell commands after one warning")
+    print("0. Cancel")
+    choice = input("Select: ").strip()
+    selected = {"1": "always", "2": "session", "3": "readonly", "4": "full"}.get(choice)
+    if selected is None:
+        return
+    if selected == "full" and not confirm_action(
+        "Full access can execute arbitrary CMD/shell commands in the workspace. Continue?"
+    ):
+        print("Permission change cancelled.")
+        return
+    permission_mode = selected
+    session_approvals.clear()
+    print(f"Permission level: {PERMISSION_MODES[permission_mode]}")
+
+
 def approve_tool_request(request: ToolRequest) -> bool:
+    if permission_mode == "readonly":
+        print(f"\nPermission denied: {request.name} is disabled in Read-only mode.")
+        return False
+    if permission_mode == "full":
+        print(f"\n[PERMISSION] Full access: approving {request.name}")
+        return True
+    approval_key = request.name
+    if permission_mode == "session" and approval_key in session_approvals:
+        return True
     print("\n" + "!" * 68)
     print(f"TOOL APPROVAL REQUIRED: {request.agent_id} requests {request.name}")
     print(json.dumps(request.arguments, indent=2, ensure_ascii=False))
     print("This action may modify files or execute a process in the workspace.")
     answer = input("Approve this action? [y/N]: ").strip().lower()
-    return answer in {"y", "yes"}
+    approved = answer in {"y", "yes"}
+    if approved and permission_mode == "session":
+        session_approvals.add(approval_key)
+    return approved
 
 
 def tui_scan_headers(url: str = "") -> None:
@@ -604,6 +658,7 @@ def tui_show_configuration() -> None:
     print(f"Task limit: {MAX_TASKS}")
     print(f"Depth limit: {MAX_DEPTH}")
     print(f"Review rounds: {MAX_REVIEW_ROUNDS}")
+    print(f"Tool permissions: {PERMISSION_MODES[permission_mode]}")
 
 
 def main(argv: list[str] | None = None) -> int:

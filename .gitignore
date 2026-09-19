@@ -21,5 +21,4 @@ pip-wheel-metadata/
 .idea/
 .vscode/
 *.code-workspace
-.DS_Store
-Thumbs.db
+AGENT.md

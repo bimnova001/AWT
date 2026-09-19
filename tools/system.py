@@ -26,9 +26,10 @@ class ToolResult:
 class ToolRegistry:
     """Execute built-in tools inside a bounded workspace."""
 
-    def __init__(self, workspace: Path | str):
+    def __init__(self, workspace: Path | str, allow_full_shell: bool = False):
         self.workspace = Path(workspace).resolve()
         self.workspace.mkdir(parents=True, exist_ok=True)
+        self.allow_full_shell = allow_full_shell
 
     def describe(self) -> list[dict[str, Any]]:
         return [
@@ -52,7 +53,10 @@ class ToolRegistry:
             },
             {
                 "name": "run_shell",
-                "description": "Run an approved development command in the workspace.",
+                "description": (
+                    "Run a user-approved CMD/shell command in the workspace. "
+                    "Permission mode controls whether approval is required."
+                ),
                 "requires_approval": True,
                 "arguments": {"command": "string", "timeout": "number, default 30"},
             },
@@ -110,6 +114,19 @@ class ToolRegistry:
         return f"Wrote {file_path.relative_to(self.workspace)} ({len(content)} bytes)."
 
     def _tool_run_shell(self, command: str, timeout: float = 30) -> str:
+        if self.allow_full_shell:
+            completed = subprocess.run(
+                command,
+                cwd=self.workspace,
+                capture_output=True,
+                text=True,
+                timeout=min(float(timeout), 120),
+                check=False,
+                shell=True,
+            )
+            output = (completed.stdout + completed.stderr).strip()
+            return f"exit_code={completed.returncode}\n{output}".strip()
+
         parts = shlex.split(command, posix=False)
         if not parts or parts[0].lower() not in {"python", "python.exe", "pytest", "git"}:
             raise ValueError("Command is not allowlisted; use python, pytest, or git")
