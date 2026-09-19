@@ -13,6 +13,7 @@ from core.task import (
 
 from core.task_graph import TaskGraph
 from tools.system import ApprovalHandler, ToolRegistry, ToolRequest, ToolResult
+from core.text_style import block, event, style
 
 
 class Orchestrator:
@@ -65,7 +66,11 @@ class Orchestrator:
 
         result = self.tool_registry.execute(request)
         status = "ok" if not result.error else result.error
-        print(f"[TOOL] {request.agent_id} -> {request.name}: {status}")
+        print(event(
+            "TOOL",
+            f"{request.agent_id} -> {request.name}: {status}",
+            "yellow",
+        ))
         return result
 
     # ------------------------------------------------
@@ -98,14 +103,7 @@ class Orchestrator:
     # ------------------------------------------------
 
     async def start(self, task: Task):
-        print()
-        print("=" * 70)
-        print("ROOT TASK")
-        print()
-        print(task.description)
-
-        print()
-        print("=" * 70)
+        print(block("ROOT TASK", task.description, "blue"))
 
         # Initial agent only.
         # This agent decides whether to work,
@@ -375,13 +373,11 @@ class Orchestrator:
 
         print()
 
-        print(
-            f"[ORCHESTRATOR] "
-            f"RESULT from "
-            f"{agent.agent_id} "
-            f"for "
-            f"{task.task_id[:8]}"
-        )
+        print(event(
+            "RESULT",
+            f"from {agent.agent_id} for {task.task_id[:8]}",
+            "blue",
+        ))
 
         reviewer = self.choose_reviewer(
             task,
@@ -495,27 +491,17 @@ class Orchestrator:
 
         print()
 
-        print(
-            f"[REVIEW] "
-            f"{reviewer.agent_id} "
-            f"→ "
-            f"{task.task_id[:8]}"
-        )
+        print(event(
+            "REVIEW",
+            f"{reviewer.agent_id} -> {task.task_id[:8]}",
+            "magenta",
+        ))
 
-        print(
-            f"Approved: "
-            f"{review['approved']}"
-        )
+        print(style(f"Approved: {review['approved']}", "green" if review["approved"] else "red"))
 
-        print(
-            f"Score: "
-            f"{review['score']}"
-        )
+        print(style(f"Score: {review['score']}", "blue"))
 
-        print(
-            f"Feedback: "
-            f"{review['feedback']}"
-        )
+        print(style(f"Feedback: {review['feedback']}", "blue"))
 
         if review["approved"]:
 
@@ -630,13 +616,7 @@ class Orchestrator:
                 "=" * 70
             )
 
-            print(
-                "ROOT TASK COMPLETED"
-            )
-
-            print(
-                "=" * 70
-            )
+            print(style("ROOT TASK COMPLETED", "green", bold=True))
 
     async def check_parent(
         self,
@@ -870,14 +850,8 @@ RESULT:
 
         print()
 
-        print(
-            f"[FAILED] "
-            f"{task.task_id[:8]}"
-        )
-
-        print(
-            reason
-        )
+        print(event("FAILED", task.task_id[:8], "red"))
+        print(style(reason, "red"))
 
         if task.parent_task_id is None:
             self.completed = True

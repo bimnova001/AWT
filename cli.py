@@ -16,6 +16,7 @@ from core.agent import Agent
 from core.message_bus import MessageBus
 from core.network import AgentNetwork
 from core.orchestrator import Orchestrator
+from core.text_style import block, style
 from providers.groq import GroqProvider
 from tools.security_headers import SecurityHeaderScanner
 from tools.system import ToolRegistry, ToolRequest
@@ -296,7 +297,7 @@ async def run_task(task_description: str, timeout: float) -> int:
 
     orchestrator.print_tree()
     if root.result:
-        print("\nFINAL RESULT\n" + str(root.result))
+        print(block("FINAL RESULT", root.result, "green"))
     return 0 if root.status.value == "COMPLETED" else 1
 
 

@@ -16,6 +16,7 @@ from core.task import (
     TaskStatus
 )
 from config.settings import MAX_CONTEXT_CHARS, MAX_RESULT_CHARS
+from core.text_style import event, style
 
 
 def clip_text(value: object, limit: int) -> str:
@@ -203,15 +204,13 @@ Return only the requested structured decision.
         )
 
         print()
-        print(
-            f"[{self.agent_id}] "
-            f"{task.task_id[:8]} "
-            f"=> {decision.decision.value}"
-        )
+        print(event(
+            self.agent_id,
+            f"{task.task_id[:8]} => {decision.decision.value}",
+        ))
 
         print(
-            f"Reason: "
-            f"{decision.reason}"
+            style(f"Reason: {decision.reason}", "blue")
         )
 
         tool_context = await self.run_tool_calls(task, decision)
@@ -583,10 +582,7 @@ Return a structured review.
 
             except Exception as e:
 
-                print(
-                    f"[{self.agent_id}] "
-                    f"ERROR: {e}"
-                )
+                print(event(self.agent_id, f"ERROR: {e}", "red"))
 
                 if message.task_id:
                     failed_task = self.orchestrator.graph.get(
