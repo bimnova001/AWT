@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DecisionType(str, Enum):
@@ -18,6 +18,8 @@ class DecisionType(str, Enum):
 
 class ProposedSubtask(BaseModel):
 
+    model_config = ConfigDict(extra="forbid")
+
     description: str
 
     required_capabilities: list[str] = Field(
@@ -29,14 +31,16 @@ class ProposedSubtask(BaseModel):
 
 class ToolCall(BaseModel):
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str
 
-    arguments: dict = Field(
-        default_factory=dict
-    )
+    arguments: str = "{}"
 
 
 class AgentDecision(BaseModel):
+
+    model_config = ConfigDict(extra="forbid")
 
     decision: DecisionType
 

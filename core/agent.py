@@ -138,6 +138,8 @@ Important:
 8. You are not a manager. You are an autonomous collaborator.
 9. Propose tool_calls only when necessary. The orchestrator validates every
     call, and the user must approve write_file and run_shell.
+11. Put tool arguments in the arguments field as a JSON object encoded as a
+    string, for example: '{{"path":"README.md"}}'.
 
 Return only the requested structured decision.
 """
@@ -287,10 +289,14 @@ Return only the requested structured decision.
         results = []
 
         for call in decision.tool_calls:
+            try:
+                arguments = json.loads(call.arguments)
+            except json.JSONDecodeError:
+                arguments = {}
             result = await self.orchestrator.execute_tool(
                 ToolRequest(
                     name=call.name,
-                    arguments=call.arguments,
+                    arguments=arguments,
                     agent_id=self.agent_id,
                     task_id=task.task_id,
                 )
