@@ -339,8 +339,10 @@ Previous context:
 
 Perform the task as far as possible.
 
-Do not pretend to have executed tools
-that you do not actually have.
+Tool execution is disabled during this response. Do not call tools,
+do not emit tool-call JSON/XML, and do not use tool names from another
+system such as repo_browser.open_file. Use only the tool results included
+in the context and return plain-text engineering output.
 
 If external information or tools are unavailable,
 state the limitation clearly.
@@ -361,8 +363,9 @@ Return a useful engineering result containing:
                 {
                     "role": "system",
                     "content":
-                        "You are a productive "
-                        "engineering agent."
+                        "You are a productive engineering agent. "
+                        "Return plain text only. Tool calls are disabled "
+                        "in this work response."
                 },
 
                 {
