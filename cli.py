@@ -167,7 +167,48 @@ def confirm_action(message: str) -> bool:
     return answer in {"y", "yes"}
 
 
+def check_code_update() -> tuple[str, str]:
+    """Check origin/main without changing local Git refs or files."""
+
+    try:
+        local = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        remote = subprocess.run(
+            ["git", "ls-remote", "origin", "refs/heads/main"],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return "unknown", str(error)
+
+    if local.returncode != 0 or remote.returncode != 0 or not remote.stdout.strip():
+        return "unknown", "Unable to check origin/main."
+
+    local_hash = local.stdout.strip()
+    remote_hash = remote.stdout.split()[0]
+    if local_hash == remote_hash:
+        return "up_to_date", f"origin/main is at {remote_hash[:8]}"
+    return "available", f"origin/main has update {remote_hash[:8]}"
+
+
 def update_tui() -> None:
+    status, detail = check_code_update()
+    print(f"\nAWT version {APP_VERSION}")
+    if status == "available":
+        print(f"Update available: {detail}")
+    elif status == "up_to_date":
+        print(f"Up to date: {detail}")
+    else:
+        print(f"Update status unknown: {detail}")
     print("\nUpdate options")
     print("1. Install missing dependencies")
     print("2. Upgrade Python dependencies")
@@ -293,7 +334,8 @@ def run_tui() -> int:
 
     def bottom_toolbar():
         return HTML(
-            f" <b>Workspace</b> {Path.cwd()}  "
+            f" <b>AWT</b> v{APP_VERSION}  "
+            f"<b>Workspace</b> {Path.cwd()}  "
             f"<b>Model</b> {GROQ_MODEL}  "
             f"<b>Agents</b> {len(GROQ_KEYS)} ready"
         )
@@ -314,6 +356,7 @@ def run_tui() -> int:
     print("=" * 72)
     print("                 A W T   /   A G E N T   W O R K E R   T E A M")
     print("=" * 72)
+    print(f"Version {APP_VERSION}")
     print("\nAsk anything. AWT plans, delegates, executes, reviews, and reports.")
     print("Type / for commands. Use Up/Down and Tab to select a command.\n")
 
