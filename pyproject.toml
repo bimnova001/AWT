@@ -17,8 +17,6 @@ dependencies = [
 [project.scripts]
 AWT = "awt_launcher:main"
 awt = "awt_launcher:main"
-codex = "awt_launcher:main"
-opencode = "awt_launcher:main"
 
 [tool.setuptools]
 py-modules = ["awt_launcher", "cli", "main"]
